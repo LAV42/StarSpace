@@ -65,15 +65,16 @@ using namespace boost::numeric;
 
 EmbedModel::EmbedModel(
     shared_ptr<Args> args,
-    shared_ptr<Dictionary> dict) {
+    shared_ptr<Dictionary> dict,
+    int seed) {
 
   args_ = args;
   dict_ = dict;
 
-  initModelWeights();
+  initModelWeights(seed);
 }
 
-void EmbedModel::initModelWeights() {
+void EmbedModel::initModelWeights(int seed) {
   assert(dict_ != nullptr);
   size_t num_lhs = dict_->nwords() + dict_->nlabels();
 
@@ -83,7 +84,7 @@ void EmbedModel::initModelWeights() {
 
   LHSEmbeddings_ =
     std::shared_ptr<SparseLinear<Real>>(
-      new SparseLinear<Real>({num_lhs, args_->dim},args_->initRandSd)
+      new SparseLinear<Real>({num_lhs, args_->dim},args_->initRandSd, seed)
     );
 
   if (args_->shareEmb) {
@@ -91,7 +92,7 @@ void EmbedModel::initModelWeights() {
   } else {
     RHSEmbeddings_ =
       std::shared_ptr<SparseLinear<Real>>(
-        new SparseLinear<Real>({num_lhs, args_->dim},args_->initRandSd)
+        new SparseLinear<Real>({num_lhs, args_->dim},args_->initRandSd, seed)
       );
   }
 
@@ -165,9 +166,11 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
                       int epochs_done,
                        Real rate,
                        Real finishRate,
-                       bool verbose) {
+                       bool verbose,
+                       int seed) {
   assert(rate >= finishRate);
   assert(rate >= 0.0);
+  cout << "Main seed " << seed << '\n';
 
   // Use a layer of indirection when accessing the corpus to allow shuffling.
   auto numSamples = data->getSize();
@@ -176,6 +179,8 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
     int i = 0;
     for (auto& idx: indices) idx = i++;
   }
+  // Shuffling examples
+  std::srand(seed);
   std::random_shuffle(indices.begin(), indices.end());
 
   // Compute word negatives
@@ -198,7 +203,8 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
 
   auto trainThread = [&](int idx,
                          vector<int>::const_iterator start,
-                         vector<int>::const_iterator end) {
+                         vector<int>::const_iterator end,
+                         int seed) {
     assert(start >= indices.begin());
     assert(end >= start);
     assert(end <= indices.end());
@@ -209,20 +215,24 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
 
     unsigned int batch_sz = args_->batchSize;
     vector<ParseResults> examples;
+    default_random_engine batch_seed(seed);
     for (auto ip = start; ip < end; ip++) {
       auto i = *ip;
       float thisLoss = 0.0;
       if (args_->trainMode == 5 || args_->trainWord) {
         vector<ParseResults> exs;
+        // Not yet deterministic
         data->getWordExamples(i, exs);
         vector<ParseResults> word_exs;
         for (unsigned int i = 0; i < exs.size(); i++) {
           word_exs.push_back(exs[i]);
           if (word_exs.size() >= batch_sz || i == exs.size() - 1) {
             if (args_->loss == "softmax") {
-              thisLoss = trainNLLBatch(data, word_exs, negSearchLimit, rate, true);
+              thisLoss = trainNLLBatch(data, word_exs, negSearchLimit, rate,
+              true, batch_seed());
             } else {
-              thisLoss = trainOneBatch(data, word_exs, negSearchLimit, rate, true);
+              thisLoss = trainOneBatch(data, word_exs, negSearchLimit, rate,
+              true, batch_seed());
             }
             word_exs.clear();
             assert(thisLoss >= 0.0);
@@ -233,16 +243,18 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
       }
       if (args_->trainMode != 5) {
         ParseResults ex;
-        data->getExampleById(i, ex);
+        data->getExampleById(i, ex, batch_seed());
         if (ex.LHSTokens.size() == 0 or ex.RHSTokens.size() == 0) {
           continue;
         }
         examples.push_back(ex);
         if (examples.size() >= batch_sz || (ip + 1) == end) {
           if (args_->loss == "softmax") {
-            thisLoss = trainNLLBatch(data, examples, negSearchLimit, rate, false);
+            thisLoss = trainNLLBatch(data, examples, negSearchLimit, rate,
+            false, batch_seed());
           } else {
-            thisLoss = trainOneBatch(data, examples, negSearchLimit, rate, false);
+            thisLoss = trainOneBatch(data, examples, negSearchLimit, rate,
+            false, batch_seed());
           }
           examples.clear();
 
@@ -302,7 +314,10 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
   bool doneTraining = false;
   size_t numPerThread = ceil(numSamples / numThreads);
   assert(numPerThread > 0);
+  default_random_engine gen(seed);
   for (size_t i = 0; i < (size_t)numThreads; i++) {
+    int thread_seed = gen();
+    cout << "Thread " << i << "seed " << thread_seed << "\n";
     auto start = i * numPerThread;
     auto end = (std::min)(start + numPerThread, numSamples);
     assert(end >= start);
@@ -313,7 +328,7 @@ Real EmbedModel::train(shared_ptr<InternDataHandler> data,
     assert(e >= b);
     assert(e <= indices.end());
     threads.emplace_back(thread([=] {
-      trainThread(i, b, e);
+      trainThread(i, b, e, thread_seed);
     }));
   }
 
@@ -356,11 +371,13 @@ float EmbedModel::trainOneBatch(shared_ptr<InternDataHandler> data,
                            const vector<ParseResults>& batch_exs,
                            size_t negSearchLimit,
                            Real rate0,
-                           bool trainWord) {
+                           bool trainWord,
+                           int seed) {
 
   using namespace boost::numeric::ublas;
   // Keep all the activations on the stack so we can asynchronously
   // update.
+  cout << "trainbatch seed " << seed << "\n";
 
   int batch_sz = batch_exs.size();
   std::vector<Matrix<Real>> lhs(batch_sz), rhsP(batch_sz);
@@ -398,12 +415,13 @@ float EmbedModel::trainOneBatch(shared_ptr<InternDataHandler> data,
   std::vector<Matrix<Real>> rhsN(negSearchLimit);
   std::vector<std::vector<Base>> batch_negLabels;
 
+  default_random_engine gen(seed);
   for (unsigned int i = 0; i < negSearchLimit; i++) {
     std::vector<Base> negLabels;
     if (trainWord) {
       data->getRandomWord(negLabels);
     } else {
-      data->getRandomRHS(negLabels);
+      data->getRandomRHS(negLabels, gen());
     }
     projectRHS(negLabels, rhsN[i]);;
     check(rhsN[i]);
@@ -567,7 +585,8 @@ float EmbedModel::trainNLLBatch(
     const vector<ParseResults>& batch_exs,
     int32_t negSearchLimit,
     Real rate0,
-    bool trainWord) {
+    bool trainWord,
+    int seed) {
 
   auto batch_sz = args_->batchSize;
   std::vector<Matrix<Real>> lhs(batch_sz), rhsP(batch_sz), rhsN(negSearchLimit);
@@ -595,12 +614,13 @@ float EmbedModel::trainNLLBatch(
 
   Real total_loss = 0.0;
 
+  default_random_engine gen(seed);
   for (int i = 0; i < negSearchLimit; i++) {
     std::vector<Base> negLabels;
     if (trainWord) {
       data->getRandomWord(negLabels);
     } else {
-      data->getRandomRHS(negLabels);
+      data->getRandomRHS(negLabels, gen());
     }
     projectRHS(negLabels, rhsN[i]);
     check(rhsN[i]);

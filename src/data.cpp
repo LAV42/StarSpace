@@ -81,7 +81,7 @@ void InternDataHandler::loadFromFile(
 // as label, and the rest of labels from r.h.s. will be input features
 void InternDataHandler::convert(
     const ParseResults& example,
-    ParseResults& rslt) const {
+    ParseResults& rslt, int seed) const {
 
   rslt.weight = example.weight;
   rslt.LHSTokens.clear();
@@ -90,17 +90,19 @@ void InternDataHandler::convert(
   rslt.LHSTokens.insert(rslt.LHSTokens.end(),
       example.LHSTokens.begin(), example.LHSTokens.end());
 
+  // Allow deterministic random numbers
+  default_random_engine gen(seed);
   if (args_->trainMode == 0) {
     // lhs is the same, pick one random label as rhs
     assert(example.LHSTokens.size() > 0);
     assert(example.RHSTokens.size() > 0);
-    auto idx = rand() % example.RHSTokens.size();
+    auto idx = gen() % example.RHSTokens.size();
     rslt.RHSTokens.push_back(example.RHSTokens[idx]);
   } else {
     assert(example.RHSTokens.size() > 1);
     if (args_->trainMode == 1) {
       // pick one random label as rhs and the rest is lhs
-      auto idx = rand() % example.RHSTokens.size();
+      auto idx = gen() % example.RHSTokens.size();
       for (unsigned int i = 0; i < example.RHSTokens.size(); i++) {
         auto tok = example.RHSTokens[i];
         if (i == idx) {
@@ -112,7 +114,7 @@ void InternDataHandler::convert(
     } else
     if (args_->trainMode == 2) {
       // pick one random label as lhs and the rest is rhs
-      auto idx = rand() % example.RHSTokens.size();
+      auto idx = gen() % example.RHSTokens.size();
       for (unsigned int i = 0; i < example.RHSTokens.size(); i++) {
         auto tok = example.RHSTokens[i];
         if (i == idx) {
@@ -124,10 +126,10 @@ void InternDataHandler::convert(
     } else
     if (args_->trainMode == 3) {
       // pick two random labels, one as lhs and the other as rhs
-      auto idx = rand() % example.RHSTokens.size();
+      auto idx = gen() % example.RHSTokens.size();
       unsigned int idx2;
       do {
-        idx2 = rand() % example.RHSTokens.size();
+        idx2 = gen() % example.RHSTokens.size();
       } while (idx2 == idx);
       rslt.LHSTokens.push_back(example.RHSTokens[idx]);
       rslt.RHSTokens.push_back(example.RHSTokens[idx2]);
@@ -175,42 +177,45 @@ void InternDataHandler::addExample(const ParseResults& example) {
   size_++;
 }
 
-void InternDataHandler::getExampleById(int32_t idx, ParseResults& rslt) const {
+void InternDataHandler::getExampleById(int32_t idx, ParseResults& rslt, int seed) const {
   assert(idx < size_);
-  convert(examples_[idx], rslt);
+  convert(examples_[idx], rslt, seed);
 }
 
-void InternDataHandler::getNextExample(ParseResults& rslt) {
+void InternDataHandler::getNextExample(ParseResults& rslt, int seed) {
   assert(size_ > 0);
   idx_ = idx_ + 1;
   // go back to the beginning of the examples if we reach the end
   if (idx_ >= size_) {
     idx_ = idx_ - size_;
   }
-  convert(examples_[idx_], rslt);
+  convert(examples_[idx_], rslt, seed);
 }
 
-void InternDataHandler::getRandomExample(ParseResults& rslt) const {
+void InternDataHandler::getRandomExample(ParseResults& rslt, int seed) const {
   assert(size_ > 0);
-  int32_t idx = rand() % size_;
-  convert(examples_[idx], rslt);
+  default_random_engine gen(seed);
+  int32_t idx = gen() % size_;
+  cout << "We go there \n\n\n\n\n";
+  convert(examples_[idx], rslt, seed);
 }
 
-void InternDataHandler::getKRandomExamples(int K, vector<ParseResults>& c) {
+void InternDataHandler::getKRandomExamples(int K, vector<ParseResults>& c, int seed) {
   auto kSamples = min(K, size_);
+  default_random_engine gen(seed);
   for (int i = 0; i < kSamples; i++) {
     ParseResults example;
-    getRandomExample(example);
+    getRandomExample(example, gen());
     c.push_back(example);
   }
 }
 
-void InternDataHandler::getNextKExamples(int K, vector<ParseResults>& c) {
+void InternDataHandler::getNextKExamples(int K, vector<ParseResults>& c, int seed) {
   auto kSamples = min(K, size_);
   for (int i = 0; i < kSamples; i++) {
     idx_ = (idx_ + 1) % size_;
     ParseResults example;
-    convert(examples_[idx_], example);
+    convert(examples_[idx_], example, seed);
     c.push_back(example);
   }
 }
@@ -241,11 +246,12 @@ Base InternDataHandler::genRandomWord() const {
 
 // Randomly sample one example and randomly sample a label from this example
 // The result is usually used as negative samples in training
-void InternDataHandler::getRandomRHS(vector<Base>& results) const {
+void InternDataHandler::getRandomRHS(vector<Base>& results, int seed) const {
   assert(size_ > 0);
   results.clear();
-  auto& ex = examples_[rand() % size_];
-  unsigned int r = rand() % ex.RHSTokens.size();
+  default_random_engine gen(seed);
+  auto& ex = examples_[gen() % size_];
+  unsigned int r = gen() % ex.RHSTokens.size();
   if (args_->trainMode == 2) {
     for (unsigned int i = 0; i < ex.RHSTokens.size(); i++) {
       if (i != r) {

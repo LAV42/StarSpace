@@ -29,14 +29,14 @@ class LayerDataHandler : public InternDataHandler {
 public:
   explicit LayerDataHandler(std::shared_ptr<Args> args);
 
-  void convert(const ParseResults& example, ParseResults& rslts) const override;
+  void convert(const ParseResults& example, ParseResults& rslts, int seed) const override;
 
   void getWordExamples(int idx, std::vector<ParseResults>& rslts) const override;
 
   void loadFromFile(const std::string& file,
                     std::shared_ptr<DataParser> parser) override;
 
-  void getRandomRHS(std::vector<Base>& results) const override;
+  void getRandomRHS(std::vector<Base>& results, int seed=time(0)) const override;
 
   void save(std::ostream& out) override;
 

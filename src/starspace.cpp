@@ -87,7 +87,7 @@ void StarSpace::init() {
   trainData_->loadFromFile(args_->trainFile, parser_);
 
   // init model with args and dict
-  model_ = make_shared<EmbedModel>(args_, dict_);
+  model_ = make_shared<EmbedModel>(args_, dict_, args_->seed);
 
   // set validation data
   if (!args_->validationFile.empty()) {
@@ -167,12 +167,15 @@ void StarSpace::initFromTsv(const string& filename) {
 
 void StarSpace::train() {
   float rate = args_->lr;
+  int seed = args_->seed;
   float decrPerEpoch = (rate - 1e-9) / args_->epoch;
+  cout << "Train seed " << seed << '\n';
 
   int impatience = 0;
   float best_valid_err = 1e9;
   auto t_start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < args_->epoch; i++) {
+    seed++;
     if (args_->saveEveryEpoch && i > 0) {
       auto filename = args_->model;
       if (args_->saveTempModel) {
@@ -184,7 +187,7 @@ void StarSpace::train() {
     cout << "Training epoch " << i << ": " << rate << ' ' << decrPerEpoch << endl;
     auto err = model_->train(trainData_, args_->thread,
            t_start,  i,
-           rate, rate - decrPerEpoch);
+           rate, rate - decrPerEpoch, true, seed);
     printf("\n ---+++ %20s %4d Train error : %3.8f +++--- %c%c%c\n",
            "Epoch", i, err,
            0xe2, 0x98, 0x83);
@@ -409,7 +412,7 @@ void StarSpace::evaluate() {
   assert(numPerThread > 0);
 
   vector<ParseResults> examples;
-  testData_->getNextKExamples(N, examples);
+  testData_->getNextKExamples(N, examples, rand());
 
   auto evalThread = [&] (int idx, int start, int end) {
     metrics[idx].clear();

@@ -25,7 +25,7 @@ namespace starspace {
 template<typename Real = float>
 struct SparseLinear : public Matrix<Real> {
   explicit SparseLinear(MatrixDims dims,
-                        Real sd = 1.0) : Matrix<Real>(dims, sd) { }
+                        Real sd = 1.0, int seed=time(0)) : Matrix<Real>(dims, sd, seed) { }
 
   explicit SparseLinear(std::ifstream& in) : Matrix<Real>(in) { }
 

@@ -43,13 +43,14 @@ struct Matrix {
   boost::numeric::ublas::matrix<Real> matrix;
 
   explicit Matrix(MatrixDims dims,
-                  Real sd = 1.0) :
+                  Real sd = 1.0,
+                  int seed = time(0)) :
     matrix(dims.r, dims.c)
   {
     assert(matrix.size1() == dims.r);
     assert(matrix.size2() == dims.c);
     if (sd > 0.0) {
-      randomInit(sd);
+      randomInit(sd, seed);
     }
   }
 
@@ -190,12 +191,14 @@ struct Matrix {
     out << matrix;
   }
 
-  void randomInit(Real sd = 1.0) {
+  void randomInit(Real sd = 1.0, int seed = time(0)) {
     if (numElts() > 0) {
       // Multi-threaded initialization brings debug init time down
       // from minutes to seconds.
       auto d = &matrix(0, 0);
       std::minstd_rand gen;
+      std::cout << "Matrix random init seed " << seed << "\n";
+      gen.seed(seed);
       auto nd = std::normal_distribution<Real>(0, sd);
       for (size_t i = 0; i < numElts(); i++) {
         d[i] = nd(gen);

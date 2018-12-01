@@ -36,7 +36,8 @@ typedef boost::numeric::ublas::vector<Real> Vector;
 struct EmbedModel : public boost::noncopyable {
 public:
   explicit EmbedModel(std::shared_ptr<Args> args,
-                      std::shared_ptr<Dictionary> dict);
+                      std::shared_ptr<Dictionary> dict,
+                      int seed = time(0));
 
 
   typedef std::vector<ParseResults> Corpus;
@@ -46,7 +47,8 @@ public:
 	      int epochs_done,
               Real startRate,
 	      Real endRate,
-              bool verbose = true);
+              bool verbose = true,
+              int seed = time(0));
 
   float test(std::shared_ptr<InternDataHandler> data, int numThreads) {
     return this->train(data, numThreads,
@@ -58,13 +60,15 @@ public:
                  const std::vector<ParseResults>& batch_exs,
                  size_t negSearchLimits,
                  Real rate,
-                 bool trainWord = false);
+                 bool trainWord = false,
+                 int seed = time(0));
 
   float trainNLLBatch(std::shared_ptr<InternDataHandler> data,
                  const std::vector<ParseResults>& batch_exs,
                  int32_t negSearchLimit,
                  Real rate,
-                 bool trainWord = false);
+                 bool trainWord = false,
+                 int seed = time(0));
 
   void backward(const std::vector<ParseResults>& batch_exs,
                 const std::vector<std::vector<Base>>& negLabels,
@@ -134,7 +138,7 @@ public:
     return RHSEmbeddings_;
   }
 
-  void initModelWeights();
+  void initModelWeights(int seed);
 
   Real similarity(const MatrixRow& a, const MatrixRow& b);
   Real similarity(Matrix<Real>& a, Matrix<Real>& b) {

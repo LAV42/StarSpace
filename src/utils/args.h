@@ -53,6 +53,7 @@ class Args {
     int trainMode;
     int K;
     int batchSize;
+    int seed;
     bool verbose;
     bool debug;
     bool adagrad;

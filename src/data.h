@@ -24,9 +24,9 @@ public:
   virtual void loadFromFile(const std::string& file,
                             std::shared_ptr<DataParser> parser);
 
-  virtual void convert(const ParseResults& example, ParseResults& rslt) const;
+  virtual void convert(const ParseResults& example, ParseResults& rslt, int seed = time(0)) const;
 
-  virtual void getRandomRHS(std::vector<Base>& results)
+  virtual void getRandomRHS(std::vector<Base>& results, int seed=time(0))
     const;
 
   virtual void save(std::ostream& out);
@@ -39,15 +39,15 @@ public:
 
   void addExample(const ParseResults& example);
 
-  void getExampleById(int32_t idx, ParseResults& rslt) const;
+  void getExampleById(int32_t idx, ParseResults& rslt, int seed) const;
 
-  void getNextExample(ParseResults& rslt);
+  void getNextExample(ParseResults& rslt, int seed=time(0));
 
-  void getRandomExample(ParseResults& rslt) const;
+  void getRandomExample(ParseResults& rslt, int seed=time(0)) const;
 
-  void getKRandomExamples(int K, std::vector<ParseResults>& c);
+  void getKRandomExamples(int K, std::vector<ParseResults>& c, int seed=time(0));
 
-  void getNextKExamples(int K, std::vector<ParseResults>& c);
+  void getNextKExamples(int K, std::vector<ParseResults>& c, int seed=time(0));
 
   size_t getSize() const { return size_; };
 

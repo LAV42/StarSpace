@@ -41,6 +41,7 @@ Args::Args() {
   minCountLabel = 1;
   K = 5;
   batchSize = 5;
+  seed = time(0);
   verbose = false;
   debug = false;
   adagrad = true;
@@ -170,6 +171,8 @@ void Args::parseArgs(int argc, char** argv) {
       ngrams = atoi(argv[i + 1]);
     } else if (strcmp(argv[i], "-K") == 0) {
       K = atoi(argv[i + 1]);
+    } else if (strcmp(argv[i], "-seed") == 0) {
+      seed = atoi(argv[i + 1]);
     } else if (strcmp(argv[i], "-batchSize") == 0) {
       batchSize = atoi(argv[i + 1]);
     } else if (strcmp(argv[i], "-trainMode") == 0) {
@@ -284,6 +287,7 @@ void Args::printHelp() {
        << "  -trainWord       whether to train word level together with other tasks (for multi-tasking). [" << trainWord << "]\n"
        << "  -wordWeight      if trainWord is true, wordWeight specifies example weight for word level training examples. [" << wordWeight << "]\n"
        << "  -batchSize       size of mini batch in training. [" << batchSize << "]\n"
+       << "  -seed            Initial seed for reproducible results. [" << seed << "]\n"
        << "\nThe following arguments for test are optional:\n"
        << "  -basedoc         file path for a set of labels to compare against true label. It is required when -fileFormat='labelDoc'.\n"
        << "                   In the case -fileFormat='fastText' and -basedoc is not provided, we compare true label with all other labels in the dictionary.\n"

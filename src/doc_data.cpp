@@ -116,23 +116,24 @@ void LayerDataHandler::getWordExamples(
 
 void LayerDataHandler::convert(
   const ParseResults& example,
-  ParseResults& rslt) const {
+  ParseResults& rslt, int seed) const {
 
   rslt.weight = example.weight;
   rslt.LHSTokens.clear();
   rslt.RHSTokens.clear();
 
+  default_random_engine gen(seed);
   if (args_->trainMode == 0) {
     assert(example.LHSTokens.size() > 0);
     assert(example.RHSFeatures.size() > 0);
     insert(rslt.LHSTokens, example.LHSTokens, args_->dropoutLHS);
-    auto idx = rand() % example.RHSFeatures.size();
+    auto idx = gen() % example.RHSFeatures.size();
     insert(rslt.RHSTokens, example.RHSFeatures[idx], args_->dropoutRHS);
   } else {
     assert(example.RHSFeatures.size() > 1);
     if (args_->trainMode == 1) {
       // pick one random rhs as label, the rest becomes lhs features
-      auto idx = rand() % example.RHSFeatures.size();
+      auto idx = gen() % example.RHSFeatures.size();
       for (unsigned int i = 0; i < example.RHSFeatures.size(); i++) {
         if (i == idx) {
           insert(rslt.RHSTokens, example.RHSFeatures[i], args_->dropoutRHS);
@@ -143,7 +144,7 @@ void LayerDataHandler::convert(
     } else
     if (args_->trainMode == 2) {
       // pick one random rhs as lhs, the rest becomes rhs features
-      auto idx = rand() % example.RHSFeatures.size();
+      auto idx = gen() % example.RHSFeatures.size();
       for (unsigned int i = 0; i < example.RHSFeatures.size(); i++) {
         if (i == idx) {
           insert(rslt.LHSTokens, example.RHSFeatures[i], args_->dropoutLHS);
@@ -154,12 +155,12 @@ void LayerDataHandler::convert(
     } else
     if (args_->trainMode == 3) {
       // pick one random rhs as input
-      auto idx = rand() % example.RHSFeatures.size();
+      auto idx = gen() % example.RHSFeatures.size();
       insert(rslt.LHSTokens, example.RHSFeatures[idx], args_->dropoutLHS);
       // pick another random rhs as label
       unsigned int idx2;
       do {
-        idx2 = rand() % example.RHSFeatures.size();
+        idx2 = gen() % example.RHSFeatures.size();
       } while (idx == idx2);
       insert(rslt.RHSTokens, example.RHSFeatures[idx2], args_->dropoutRHS);
     } else
@@ -180,10 +181,11 @@ Base LayerDataHandler::genRandomWord() const {
   return ex.RHSFeatures[r][wid];
 }
 
-void LayerDataHandler::getRandomRHS(vector<Base>& result) const {
+void LayerDataHandler::getRandomRHS(vector<Base>& result, int seed) const {
   assert(size_ > 0);
-  auto& ex = examples_[rand() % size_];
-  unsigned int r = rand() % ex.RHSFeatures.size();
+  default_random_engine gen(seed);
+  auto& ex = examples_[gen() % size_];
+  unsigned int r = gen() % ex.RHSFeatures.size();
 
   result.clear();
   if (args_->trainMode == 2) {
